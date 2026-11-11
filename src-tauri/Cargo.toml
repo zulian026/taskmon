@@ -1,0 +1,28 @@
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = "0.37"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[lib]
+name = "taskmon_lib"
+path = "src/lib.rs"
+
+[package]
+build = "build.rs"
+description = "TaskMon — Windows Task Manager-style task manager for Linux"
+edition = "2021"
+name = "taskmon"
+version = "0.1.0"
+
+[profile.release]
+lto = true
+opt-level = 2

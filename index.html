@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskMon — Task Manager for Linux</title>
+    <meta name="description" content="TaskMon is a Windows Task Manager-style task manager for Linux: live processes, performance, startup apps and services." />
+    <link rel="stylesheet" href="src/styles.css" />
+    <script>
+      /* Apply the saved theme before first paint so the window never
+         flashes the wrong theme. Default is dark. */
+      try {
+        var t = localStorage.getItem("taskmon-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="wordmark">
+          <svg class="wordmark-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+            <rect class="mark-accent" x="4" y="18" width="6" height="10" />
+            <rect class="mark-accent" x="13" y="10" width="6" height="18" />
+            <rect class="mark-text" x="22" y="4" width="6" height="24" />
+          </svg>
+          <span class="wordmark-name">TaskMon</span>
+        </div>
+        <nav id="nav" aria-label="Main">
+          <button class="nav-item is-active" data-view="processes" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M5.5 4h8M5.5 8h8M5.5 12h8"/><circle cx="2.5" cy="4" r="1" fill="currentColor" stroke="none"/><circle cx="2.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="2.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg>Processes</button>
+          <button class="nav-item" data-view="performance" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h2.5l2-4.5 3 9 2-4.5H14"/></svg>Performance</button>
+          <button class="nav-item" data-view="startup" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 1.5L3.5 9H7l-1 5.5L11.5 7H8l1-5.5z"/></svg>Startup apps</button>
+          <button class="nav-item" data-view="services" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2.4M8 12.1v2.4M1.5 8h2.4M12.1 8h2.4M3.4 3.4l1.7 1.7M10.9 10.9l1.7 1.7M12.6 3.4l-1.7 1.7M5.1 10.9l-1.7 1.7"/></svg>Services</button>
+        </nav>
+        <div class="sidebar-foot">
+          <div class="sidebar-foot-row"><span><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/><rect x="6.5" y="6.5" width="3" height="3"/><path d="M6 3.5V1.8M10 3.5V1.8M6 14.2v-1.7M10 14.2v-1.7M3.5 6H1.8M3.5 10H1.8M14.2 6h-1.7M14.2 10h-1.7"/></svg>CPU</span><strong id="side-cpu">—</strong></div>
+          <div class="sidebar-foot-row"><span><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="12" height="6" rx="1"/><path d="M5 8h2M9 8h2M4 5V3.5M8 5V3.5M12 5V3.5"/></svg>Memory</span><strong id="side-mem">—</strong></div>
+          <div class="sidebar-foot-row"><span><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>Uptime</span><strong id="side-uptime">—</strong></div>
+        </div>
+      </aside>
+
+      <div class="main-col">
+        <header id="topbar">
+          <div class="topbar-search search-field">
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.6 10.6L14 14"/></svg>
+            <input id="top-search" type="search" placeholder="Search" aria-label="Search" autocomplete="off" />
+          </div>
+          <div class="topbar-right">
+            <label class="interval-label" for="interval">Refresh</label>
+            <select id="interval" aria-label="Refresh interval">
+              <option value="1000" selected>1 s</option>
+              <option value="2000">2 s</option>
+              <option value="5000">5 s</option>
+            </select>
+            <span id="freshness" class="freshness">Connecting…</span>
+            <button id="theme-toggle" class="btn btn-sm btn-outline" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M12.6 3.4l-1.3 1.3M4.7 11.3l-1.3 1.3"/></svg>Light mode</button>
+          </div>
+        </header>
+
+        <main id="canvas">
+          <section id="view-processes" class="view">
+            <div class="title-row">
+              <div>
+                <h1>Processes</h1>
+                <p class="title-sub"><span id="proc-count">—</span> · <span id="proc-top">—</span></p>
+              </div>
+              <button id="end-task-btn" class="btn btn-primary" type="button" disabled><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>End task</button>
+            </div>
+            <div class="table-wrap">
+              <table id="proc-table">
+                <thead>
+                  <tr>
+                    <th data-sort="name">Name</th>
+                    <th data-sort="pid" class="num">PID</th>
+                    <th data-sort="user">User</th>
+                    <th data-sort="cpu" class="num sorted-desc">CPU</th>
+                    <th data-sort="mem_bytes" class="num">Memory</th>
+                    <th data-sort="status">Status</th>
+                    <th data-sort="run_time" class="num">Running</th>
+                  </tr>
+                </thead>
+                <tbody id="proc-body"></tbody>
+              </table>
+            </div>
+            <div id="proc-detail" class="detail-panel" hidden>
+              <div class="detail-head">
+                <strong id="detail-name">—</strong>
+                <span id="detail-pid" class="meta">—</span>
+                <span class="detail-actions">
+                  <button id="detail-end" class="btn btn-outline" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>End task</button>
+                  <button id="detail-force" class="btn btn-danger" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>Force kill</button>
+                </span>
+              </div>
+              <dl class="detail-grid">
+                <div><dt>Command</dt><dd id="detail-cmd" class="mono">—</dd></div>
+                <div><dt>Executable</dt><dd id="detail-exe" class="mono">—</dd></div>
+                <div><dt>Working dir</dt><dd id="detail-cwd" class="mono">—</dd></div>
+                <div><dt>Parent PID</dt><dd id="detail-parent">—</dd></div>
+                <div><dt>Started</dt><dd id="detail-start">—</dd></div>
+                <div><dt>Disk read / written</dt><dd id="detail-disk">—</dd></div>
+              </dl>
+            </div>
+            <p id="proc-status" class="status-line" role="status"></p>
+          </section>
+
+          <section id="view-performance" class="view" hidden>
+            <div class="title-row">
+              <div>
+                <h1>Performance</h1>
+                <p class="title-sub"><span id="perf-sub">—</span></p>
+              </div>
+            </div>
+            <div class="kpi-strip">
+              <div class="kpi"><span class="kpi-label"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/><rect x="6.5" y="6.5" width="3" height="3"/><path d="M6 3.5V1.8M10 3.5V1.8M6 14.2v-1.7M10 14.2v-1.7M3.5 6H1.8M3.5 10H1.8M14.2 6h-1.7M14.2 10h-1.7"/></svg>CPU</span><span class="kpi-value" id="kpi-cpu">—</span><span class="kpi-note" id="kpi-cpu-note">—</span></div>
+              <div class="kpi"><span class="kpi-label"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="12" height="6" rx="1"/><path d="M5 8h2M9 8h2M4 5V3.5M8 5V3.5M12 5V3.5"/></svg>Memory</span><span class="kpi-value" id="kpi-mem">—</span><span class="kpi-note" id="kpi-mem-note">—</span></div>
+              <div class="kpi"><span class="kpi-label"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="4" width="12" height="8" rx="1.5"/><circle cx="5" cy="8" r="1.2"/><path d="M9.5 8H12"/></svg>Disk</span><span class="kpi-value" id="kpi-disk">—</span><span class="kpi-note" id="kpi-disk-note">—</span></div>
+              <div class="kpi"><span class="kpi-label"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2 6.2a8.5 8.5 0 0 1 12 0M4.3 9.2a5.2 5.2 0 0 1 7.4 0"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/></svg>Network</span><span class="kpi-value" id="kpi-net">—</span><span class="kpi-note" id="kpi-net-note">—</span></div>
+            </div>
+            <div class="perf-grid">
+              <div class="panel panel-wide">
+                <div class="panel-head"><h2>CPU history</h2><span class="meta">last 2 minutes</span></div>
+                <div id="cpu-chart" class="chart"></div>
+                <div class="panel-head"><h2>Memory history</h2><span class="meta">last 2 minutes</span></div>
+                <div id="mem-chart" class="chart"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h2>Top processes</h2><span class="meta">by CPU</span></div>
+                <ol id="top-list" class="top-list"></ol>
+                <div class="panel-head"><h2>Load average</h2></div>
+                <p class="big-figures" id="load-avg">—</p>
+              </div>
+            </div>
+            <div class="perf-grid">
+              <div class="panel">
+                <div class="panel-head"><h2>CPU cores</h2><span class="meta" id="core-count">—</span></div>
+                <div id="core-bars" class="core-bars"></div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h2>Memory</h2></div>
+                <div class="meter-row"><span>RAM</span><div class="meter"><div id="ram-fill" class="meter-fill"></div></div><strong id="ram-text">—</strong></div>
+                <div class="meter-row"><span>Swap</span><div class="meter"><div id="swap-fill" class="meter-fill"></div></div><strong id="swap-text">—</strong></div>
+                <div class="panel-head"><h2>Disks</h2></div>
+                <div id="disk-list"></div>
+                <div class="panel-head"><h2>Network</h2></div>
+                <div id="net-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="view-startup" class="view" hidden>
+            <div class="title-row">
+              <div>
+                <h1>Startup apps</h1>
+                <p class="title-sub">Apps that start when you log in · user entries in ~/.config/autostart, system entries in /etc/xdg/autostart</p>
+              </div>
+              <button id="startup-refresh" class="btn btn-outline" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.7 1.2v3.2h-3.2"/></svg>Refresh</button>
+            </div>
+            <div id="startup-list" class="row-list"></div>
+            <p id="startup-status" class="status-line" role="status"></p>
+          </section>
+
+          <section id="view-services" class="view" hidden>
+            <div class="title-row">
+              <div>
+                <h1>Services</h1>
+                <p class="title-sub">systemd services · system actions may ask for authentication</p>
+              </div>
+              <div class="segmented" role="group" aria-label="Service scope">
+                <button id="scope-user" class="seg-btn is-active" type="button">User</button>
+                <button id="scope-system" class="seg-btn" type="button">System</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="svc-table">
+                <thead>
+                  <tr>
+                    <th>Unit</th>
+                    <th>Load</th>
+                    <th>Active</th>
+                    <th>State</th>
+                    <th>Description</th>
+                    <th class="num">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="svc-body"></tbody>
+              </table>
+            </div>
+            <p id="svc-status" class="status-line" role="status"></p>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
