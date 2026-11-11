@@ -21,7 +21,7 @@ build = "build.rs"
 description = "TaskMon — Windows Task Manager-style task manager for Linux"
 edition = "2021"
 name = "taskmon"
-version = "0.1.0"
+version = "0.1.1"
 
 [profile.release]
 lto = true

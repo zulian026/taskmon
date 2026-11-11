@@ -150,6 +150,7 @@ select { height: 36px; padding: 0 8px; }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .title-row > div { min-width: 0; }
 .title-row > .btn, .title-row > .segmented { flex: none; }
+.title-actions { display: flex; gap: 10px; align-items: center; flex: none; }
 .title-sub { margin: 4px 0 0; color: var(--secondary); font-size: 14px; }
 
 /* Buttons: primary is inverted white pill, never the accent */
@@ -228,16 +229,24 @@ th, td { padding: 0 12px; text-align: left; font-size: 13px; height: 45px; borde
 th { font-size: 12px; font-weight: 400; color: var(--secondary); height: 38px; cursor: pointer; user-select: none; }
 th.num, td.num { text-align: right; font-family: var(--font-figures); }
 td.name-cell { font-weight: 500; }
+/* Process tree rows: chevron toggle + per-depth indent. The label
+   truncates on its own so the td ellipsis still works. */
+.tree-indent { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.tree-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-toggle { flex: none; width: 16px; height: 16px; padding: 0; border: 0; background: transparent; color: var(--secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
+.tree-toggle:hover { color: var(--text); background: var(--raised); }
+.tree-toggle .icon { width: 13px; height: 13px; }
+.tree-spacer { flex: none; width: 16px; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--row-hover); }
 tbody tr.selected { background: var(--row-selected); }
 /* Fixed column widths; the first column takes the rest. */
-#proc-table th:nth-child(2), #proc-table td:nth-child(2) { width: 76px; }
-#proc-table th:nth-child(3), #proc-table td:nth-child(3) { width: 80px; }
-#proc-table th:nth-child(4), #proc-table td:nth-child(4) { width: 72px; }
-#proc-table th:nth-child(5), #proc-table td:nth-child(5) { width: 88px; }
-#proc-table th:nth-child(6), #proc-table td:nth-child(6) { width: 96px; }
-#proc-table th:nth-child(7), #proc-table td:nth-child(7) { width: 88px; }
+#proc-table th:nth-child(2), #proc-table td:nth-child(2) { width: 68px; }
+#proc-table th:nth-child(3), #proc-table td:nth-child(3) { width: 72px; }
+#proc-table th:nth-child(4), #proc-table td:nth-child(4) { width: 64px; }
+#proc-table th:nth-child(5), #proc-table td:nth-child(5) { width: 84px; }
+#proc-table th:nth-child(6), #proc-table td:nth-child(6) { width: 88px; }
+#proc-table th:nth-child(7), #proc-table td:nth-child(7) { width: 80px; }
 #svc-table th:nth-child(1), #svc-table td:nth-child(1) { width: 160px; }
 #svc-table th:nth-child(2), #svc-table td:nth-child(2) { width: 92px; }
 #svc-table th:nth-child(3), #svc-table td:nth-child(3) { width: 80px; }
@@ -250,10 +259,10 @@ tbody tr:last-child td { border-bottom: 0; }
 
 /* Detail panel under the process table */
 .detail-panel { background: var(--surface); border-radius: 12px; padding: 16px 24px; margin-top: 16px; }
-.detail-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; min-width: 0; }
+.detail-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; min-width: 0; flex-wrap: wrap; }
 .detail-head strong { font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-head .meta { flex: none; }
-.detail-actions { margin-left: auto; display: flex; gap: 8px; flex: none; }
+.detail-actions { margin-left: auto; display: flex; gap: 8px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 32px; margin: 0; }
 .detail-grid div { min-width: 0; }
 .detail-grid dt { font-size: 12px; color: var(--secondary); }

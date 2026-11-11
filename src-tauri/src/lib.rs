@@ -24,6 +24,11 @@ fn kill_process(pid: u32, force: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn kill_process_tree(pid: u32, force: bool) -> Result<usize, String> {
+    monitor::kill_process_tree(pid, force)
+}
+
+#[tauri::command]
 fn get_process_detail(pid: u32) -> Result<ProcessDetail, String> {
     monitor::process_detail(pid)
 }
@@ -81,6 +86,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             kill_process,
+            kill_process_tree,
             get_process_detail,
             get_startup,
             set_startup,

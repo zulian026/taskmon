@@ -64,7 +64,13 @@
                 <h1>Processes</h1>
                 <p class="title-sub"><span id="proc-count">—</span> · <span id="proc-top">—</span></p>
               </div>
-              <button id="end-task-btn" class="btn btn-primary" type="button" disabled><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>End task</button>
+              <div class="title-actions">
+                <div class="segmented" role="group" aria-label="Process view">
+                  <button id="mode-list" class="seg-btn is-active" type="button">List</button>
+                  <button id="mode-tree" class="seg-btn" type="button">Tree</button>
+                </div>
+                <button id="end-task-btn" class="btn btn-primary" type="button" disabled><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>End task</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table id="proc-table">
@@ -89,6 +95,8 @@
                 <span class="detail-actions">
                   <button id="detail-end" class="btn btn-outline" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>End task</button>
                   <button id="detail-force" class="btn btn-danger" type="button"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>Force kill</button>
+                  <button id="detail-end-tree" class="btn btn-outline" type="button" hidden>End tree</button>
+                  <button id="detail-force-tree" class="btn btn-danger" type="button" hidden>Force kill tree</button>
                 </span>
               </div>
               <dl class="detail-grid">

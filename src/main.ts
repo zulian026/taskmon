@@ -96,6 +96,16 @@ let view: "processes" | "performance" | "startup" | "services" = "processes";
 let query = "";
 let sortKey: keyof ProcessView = "cpu";
 let sortDir: 1 | -1 = -1;
+let procMode: "list" | "tree" = (() => {
+  try {
+    return localStorage.getItem("taskmon-proc-mode") === "tree" ? "tree" : "list";
+  } catch {
+    return "list";
+  }
+})();
+/* PIDs whose children are collapsed in tree mode. Survives re-renders
+   and polls within the session; search always expands. */
+const collapsed = new Set<number>();
 let selectedPid: number | null = null;
 let selectedName = "";
 let startupEntries: StartupEntry[] = [];
@@ -131,6 +141,13 @@ function lineChart(el: HTMLElement, points: { t: number; v: number }[], max: num
 
 /* ---------- Processes ---------- */
 
+function compareProc(a: ProcessView, b: ProcessView): number {
+  const av = a[sortKey];
+  const bv = b[sortKey];
+  if (typeof av === "number" && typeof bv === "number") return (av - bv) * sortDir;
+  return String(av).localeCompare(String(bv)) * sortDir;
+}
+
 function visibleProcesses(): ProcessView[] {
   if (!snap) return [];
   const q = query.trim().toLowerCase();
@@ -143,24 +160,96 @@ function visibleProcesses(): ProcessView[] {
         String(p.pid).includes(q),
     );
   }
-  const key = sortKey;
-  rows = [...rows].sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (typeof av === "number" && typeof bv === "number") return (av - bv) * sortDir;
-    return String(av).localeCompare(String(bv)) * sortDir;
-  });
-  return rows;
+  return [...rows].sort(compareProc);
+}
+
+interface TreeRow { p: ProcessView; depth: number; hasKids: boolean; collapsed: boolean; }
+
+/* Flattened tree rows in display order. Roots are processes whose
+   parent is unknown (pid 1, kernel threads, orphans). In search mode
+   only matches and their ancestors are shown, always expanded. */
+function treeRows(): TreeRow[] {
+  if (!snap) return [];
+  const byPid = new Map(snap.processes.map((p) => [p.pid, p]));
+  const kids = new Map<number, ProcessView[]>();
+  const roots: ProcessView[] = [];
+  for (const p of snap.processes) {
+    if (p.parent !== null && byPid.has(p.parent)) {
+      const arr = kids.get(p.parent) ?? [];
+      arr.push(p);
+      kids.set(p.parent, arr);
+    } else {
+      roots.push(p);
+    }
+  }
+  const q = query.trim().toLowerCase();
+  let visible: Set<number> | null = null;
+  if (q) {
+    visible = new Set<number>();
+    for (const p of snap.processes) {
+      if (
+        p.name.toLowerCase().includes(q) ||
+        p.user.toLowerCase().includes(q) ||
+        String(p.pid).includes(q)
+      ) {
+        let cur: ProcessView | undefined = p;
+        while (cur) {
+          visible.add(cur.pid);
+          cur = cur.parent !== null ? byPid.get(cur.parent) : undefined;
+        }
+      }
+    }
+  }
+  const out: TreeRow[] = [];
+  const walk = (list: ProcessView[], depth: number): void => {
+    for (const p of [...list].sort(compareProc)) {
+      if (visible && !visible.has(p.pid)) continue;
+      const childList = kids.get(p.pid) ?? [];
+      const shownKids = visible ? childList.filter((c) => visible!.has(c.pid)) : childList;
+      const hasKids = shownKids.length > 0;
+      // Search always expands: matches must be reachable.
+      const isCollapsed = q ? false : collapsed.has(p.pid);
+      out.push({ p, depth, hasKids, collapsed: isCollapsed });
+      if (hasKids && !isCollapsed) walk(shownKids, depth + 1);
+    }
+  };
+  walk(roots, 0);
+  return out;
+}
+
+/* How many descendants a process has in the current snapshot. */
+function descendantCount(pid: number): number {
+  if (!snap) return 0;
+  const kids = new Map<number, number[]>();
+  for (const p of snap.processes) {
+    if (p.parent !== null) {
+      const arr = kids.get(p.parent) ?? [];
+      arr.push(p.pid);
+      kids.set(p.parent, arr);
+    }
+  }
+  let n = 0;
+  const queue = [...(kids.get(pid) ?? [])];
+  while (queue.length) {
+    const cur = queue.pop()!;
+    n++;
+    queue.push(...(kids.get(cur) ?? []));
+  }
+  return n;
 }
 
 function renderProcesses(): void {
   if (!snap) return;
-  const rows = visibleProcesses();
-  $("proc-count").textContent = `${rows.length} of ${snap.processes.length} processes`;
   const top = snap.processes[0];
   $("proc-top").textContent = top
     ? `top CPU: ${top.name} ${top.cpu.toFixed(1)}%`
     : "no processes";
+  if (procMode === "tree") {
+    renderTree();
+    return;
+  }
+  const rows = visibleProcesses();
+  $("proc-count").textContent = `${rows.length} of ${snap.processes.length} processes`;
   const body = $("proc-body");
   const frag = document.createDocumentFragment();
   for (const p of rows.slice(0, 300)) {
@@ -187,6 +276,47 @@ function renderProcesses(): void {
   $<HTMLButtonElement>("end-task-btn").disabled = selectedPid === null;
 }
 
+function renderTree(): void {
+  if (!snap) return;
+  const rows = treeRows();
+  $("proc-count").textContent = `${rows.length} of ${snap.processes.length} processes`;
+  const body = $("proc-body");
+  const frag = document.createDocumentFragment();
+  for (const r of rows.slice(0, 300)) {
+    const p = r.p;
+    const tr = document.createElement("tr");
+    if (p.pid === selectedPid) tr.classList.add("selected");
+    tr.dataset.pid = String(p.pid);
+    const toggle = r.hasKids
+      ? `<button type="button" class="tree-toggle" aria-label="${r.collapsed ? "Expand" : "Collapse"} ${escapeHtml(p.name)}" aria-expanded="${String(!r.collapsed)}">${icon(r.collapsed ? "chevR" : "chevD")}</button>`
+      : `<span class="tree-spacer"></span>`;
+    tr.innerHTML =
+      `<td class="name-cell" title="${escapeHtml(p.name)}"><span class="tree-indent" style="padding-left:${r.depth * 12}px">${toggle}<span class="tree-label">${escapeHtml(p.name)}</span></span></td>` +
+      `<td class="num">${p.pid}</td>` +
+      `<td>${escapeHtml(p.user)}</td>` +
+      `<td class="num">${p.cpu.toFixed(1)}%</td>` +
+      `<td class="num">${fmtBytes(p.mem_bytes)}</td>` +
+      `<td>${escapeHtml(p.status)}</td>` +
+      `<td class="num">${fmtDuration(p.run_time)}</td>`;
+    const toggleBtn = tr.querySelector(".tree-toggle") as HTMLButtonElement | null;
+    toggleBtn?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (collapsed.has(p.pid)) collapsed.delete(p.pid);
+      else collapsed.add(p.pid);
+      renderProcesses();
+    });
+    tr.addEventListener("click", () => selectProcess(p.pid, p.name));
+    frag.appendChild(tr);
+  }
+  body.replaceChildren(frag);
+  if (rows.length > 300) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="7" class="meta">Showing 300 of ${rows.length} — narrow the search to see more.</td>`;
+    body.appendChild(tr);
+  }
+  $<HTMLButtonElement>("end-task-btn").disabled = selectedPid === null;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -199,16 +329,52 @@ async function selectProcess(pid: number, name: string): Promise<void> {
   panel.hidden = false;
   $("detail-name").textContent = name;
   $("detail-pid").textContent = `PID ${pid}`;
+  // Tree actions live in the detail panel: only when this process
+  // actually has children in the current snapshot.
+  const kids = descendantCount(pid);
+  const endTreeBtn = $<HTMLButtonElement>("detail-end-tree");
+  const forceTreeBtn = $<HTMLButtonElement>("detail-force-tree");
+  endTreeBtn.hidden = kids === 0;
+  forceTreeBtn.hidden = kids === 0;
+  endTreeBtn.textContent = `End tree (${kids + 1})`;
+  forceTreeBtn.textContent = `Force kill tree (${kids + 1})`;
+  endTreeBtn.title = `End ${name} and its ${kids} child process${kids === 1 ? "" : "es"}`;
+  forceTreeBtn.title = `Force kill ${name} and its ${kids} child process${kids === 1 ? "" : "es"}`;
   try {
     const d = await invoke<ProcessDetail>("get_process_detail", { pid });
     $("detail-cmd").textContent = d.cmdline || d.name;
     $("detail-exe").textContent = d.exe ?? "—";
     $("detail-cwd").textContent = d.cwd ?? "—";
-    $("detail-parent").textContent = d.parent === null ? "—" : String(d.parent);
+    const parentName = d.parent !== null ? snap?.processes.find((p) => p.pid === d.parent)?.name : undefined;
+    $("detail-parent").textContent =
+      d.parent === null ? "—" : parentName ? `${parentName} (PID ${d.parent})` : `PID ${d.parent}`;
     $("detail-start").textContent = fmtDateTime(d.start_time);
     $("detail-disk").textContent = `${fmtBytes(d.disk_read_total)} read · ${fmtBytes(d.disk_write_total)} written`;
   } catch (e) {
     $("detail-cmd").textContent = `Could not read details: ${e}`;
+  }
+}
+
+async function endTree(pid: number, name: string, force: boolean): Promise<void> {
+  const n = descendantCount(pid) + 1;
+  const label = force ? "Force kill tree" : "End tree";
+  if (
+    !window.confirm(
+      `${label}: ${name} (PID ${pid}) and ${n - 1} child process${n - 1 === 1 ? "" : "es"} (${n} total)?${force ? "" : " Each process gets SIGTERM and can shut down cleanly."}`,
+    )
+  )
+    return;
+  const status = $("proc-status");
+  try {
+    const killed = await invoke<number>("kill_process_tree", { pid, force });
+    status.textContent = `${label}: signal sent to ${killed} process${killed === 1 ? "" : "es"} in the tree of ${name} (PID ${pid}).`;
+    if (selectedPid === pid) {
+      selectedPid = null;
+      $("proc-detail").hidden = true;
+    }
+    await refreshSoon();
+  } catch (e) {
+    status.textContent = `${label} failed: ${e}`;
   }
 }
 
@@ -422,6 +588,8 @@ const ICONS: Record<string, string> = {
   play: '<path d="M5 3.5l8 4.5-8 4.5z" fill="currentColor" stroke="none"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor" stroke="none"/>',
   refresh: '<path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9"/><path d="M13.7 1.2v3.2h-3.2"/>',
+  chevR: '<path d="M6 4l4 4-4 4"/>',
+  chevD: '<path d="M4 6l4 4 4-4"/>',
 };
 
 function icon(name: keyof typeof ICONS): string {
@@ -452,6 +620,18 @@ function initTheme(): void {
 }
 
 /* ---------- Shell ---------- */
+
+function setProcMode(m: "list" | "tree"): void {
+  procMode = m;
+  try {
+    localStorage.setItem("taskmon-proc-mode", m);
+  } catch {
+    /* private mode — mode just doesn't persist */
+  }
+  $("mode-list").classList.toggle("is-active", m === "list");
+  $("mode-tree").classList.toggle("is-active", m === "tree");
+  renderProcesses();
+}
 
 function switchView(next: typeof view): void {
   view = next;
@@ -523,11 +703,20 @@ function init(): void {
   $("end-task-btn").addEventListener("click", () => {
     if (selectedPid !== null) void endTask(selectedPid, selectedName, false);
   });
+  $("mode-list").addEventListener("click", () => setProcMode("list"));
+  $("mode-tree").addEventListener("click", () => setProcMode("tree"));
+  setProcMode(procMode);
   $("detail-end").addEventListener("click", () => {
     if (selectedPid !== null) void endTask(selectedPid, selectedName, false);
   });
   $("detail-force").addEventListener("click", () => {
     if (selectedPid !== null) void endTask(selectedPid, selectedName, true);
+  });
+  $("detail-end-tree").addEventListener("click", () => {
+    if (selectedPid !== null) void endTree(selectedPid, selectedName, false);
+  });
+  $("detail-force-tree").addEventListener("click", () => {
+    if (selectedPid !== null) void endTree(selectedPid, selectedName, true);
   });
   $("startup-refresh").addEventListener("click", () => void loadStartup());
   $("scope-user").addEventListener("click", () => {

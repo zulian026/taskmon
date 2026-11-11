@@ -3,7 +3,7 @@
 //! a 120-sample history plus per-second I/O rates computed from deltas.
 
 use serde::Serialize;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Instant;
 use sysinfo::{
     Disks, Networks, Pid, Process, ProcessesToUpdate, Signal, System, Users,
@@ -278,6 +278,68 @@ pub fn kill_process(pid: u32, force: bool) -> Result<bool, String> {
     }
 }
 
+/// All descendant PIDs of `root` in a pid -> parent map, parents before
+/// children (BFS order). A visited set guards against a corrupt map.
+pub fn descendant_pids(parents: &HashMap<u32, u32>, root: u32) -> Vec<u32> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (pid, ppid) in parents {
+        children.entry(*ppid).or_default().push(*pid);
+    }
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut queue = VecDeque::new();
+    seen.insert(root);
+    queue.push_back(root);
+    while let Some(pid) = queue.pop_front() {
+        if let Some(kids) = children.get(&pid) {
+            for kid in kids {
+                if seen.insert(*kid) {
+                    out.push(*kid);
+                    queue.push_back(*kid);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Kill a process and all of its descendants, children first so nothing
+/// is orphaned mid-kill. Returns how many processes were signalled.
+pub fn kill_process_tree(pid: u32, force: bool) -> Result<usize, String> {
+    let mut sys = System::new();
+    sys.refresh_processes(ProcessesToUpdate::All, true);
+    if sys.process(Pid::from_u32(pid)).is_none() {
+        return Err(format!("no process with PID {pid}"));
+    }
+    let parents: HashMap<u32, u32> = sys
+        .processes()
+        .values()
+        .filter_map(|p| p.parent().map(|pp| (p.pid().as_u32(), pp.as_u32())))
+        .collect();
+    // Descendants are parents-first; reverse to kill children first,
+    // root last.
+    let mut targets = descendant_pids(&parents, pid);
+    targets.reverse();
+    targets.push(pid);
+    let mut killed = 0;
+    for t in targets {
+        if let Some(p) = sys.process(Pid::from_u32(t)) {
+            let ok = if force {
+                p.kill_with(Signal::Kill).unwrap_or(false)
+            } else {
+                p.kill()
+            };
+            if ok {
+                killed += 1;
+            }
+        }
+    }
+    if killed == 0 {
+        return Err(format!("failed to signal PID {pid}"));
+    }
+    Ok(killed)
+}
+
 /// Detail for one process, looked up fresh.
 pub fn process_detail(pid: u32) -> Result<ProcessDetail, String> {
     let mut sys = System::new_all();
@@ -379,5 +441,34 @@ mod tests {
     #[test]
     fn diskstats_empty_is_zero() {
         assert_eq!(parse_diskstats(""), (0, 0));
+    }
+
+    #[test]
+    fn descendants_bfs_parents_first() {
+        let mut m = HashMap::new();
+        m.insert(2, 1);
+        m.insert(3, 1);
+        m.insert(4, 2);
+        m.insert(5, 9); // unrelated branch
+        let d = descendant_pids(&m, 1);
+        assert_eq!(d.len(), 3);
+        assert!(d.contains(&2) && d.contains(&3) && d.contains(&4));
+        // Parent 2 comes before its child 4.
+        assert!(d.iter().position(|x| *x == 2) < d.iter().position(|x| *x == 4));
+        assert_eq!(descendant_pids(&m, 2), vec![4]);
+        assert!(descendant_pids(&m, 5).is_empty());
+        assert!(descendant_pids(&m, 99).is_empty());
+    }
+
+    #[test]
+    fn descendants_cycle_does_not_loop() {
+        let mut m = HashMap::new();
+        m.insert(2, 1);
+        m.insert(3, 1);
+        m.insert(4, 2);
+        m.insert(1, 4); // corrupt map: 1 -> 2 -> 4 -> 1
+        let d = descendant_pids(&m, 1);
+        assert_eq!(d.len(), 3);
+        assert!(!d.contains(&1));
     }
 }
