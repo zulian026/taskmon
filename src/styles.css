@@ -161,7 +161,11 @@ select { height: 36px; padding: 0 8px; }
 .btn-primary:hover:not(:disabled) { border-color: var(--text); }
 .btn-outline { background: transparent; }
 .btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+.btn-accent { background: transparent; border-color: var(--accent); color: var(--accent); }
 .btn-sm { height: 28px; padding: 0 10px; border-radius: 14px; font-size: 13px; }
+/* Icon-only action button: square, no text. The action name moves to
+   title / aria-label. */
+.btn-icon { width: 28px; min-width: 28px; padding: 0; }
 
 /* KPI strip — one divided container, type not tiles.
    Grid children need min-width: 0 or the 26px mono values push the
@@ -238,7 +242,7 @@ tbody tr.selected { background: var(--row-selected); }
 #svc-table th:nth-child(2), #svc-table td:nth-child(2) { width: 92px; }
 #svc-table th:nth-child(3), #svc-table td:nth-child(3) { width: 80px; }
 #svc-table th:nth-child(4), #svc-table td:nth-child(4) { width: 84px; }
-#svc-table th:nth-child(6), #svc-table td:nth-child(6) { width: 180px; }
+#svc-table th:nth-child(6), #svc-table td:nth-child(6) { width: 96px; }
 tbody tr:last-child td { border-bottom: 0; }
 .sorted-asc::after { content: " ↑"; }
 .sorted-desc::after { content: " ↓"; }

@@ -381,8 +381,12 @@ function renderServices(): void {
       for (const action of running ? ["stop", "restart"] : ["start"]) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "btn btn-sm btn-outline";
-        btn.innerHTML = `${icon(actionIcons[action])}${action}`;
+        /* Icon only: stop is red (destructive), start/restart are
+           accent (safe). The action name lives in title + aria-label. */
+        btn.className = `btn btn-sm btn-icon ${action === "stop" ? "btn-danger" : "btn-accent"}`;
+        btn.innerHTML = icon(actionIcons[action]);
+        btn.title = `${action} ${s.unit}`;
+        btn.setAttribute("aria-label", `${action} ${s.unit}`);
         btn.addEventListener("click", async (ev) => {
           ev.stopPropagation();
           btn.disabled = true;
