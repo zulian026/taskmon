@@ -72,8 +72,6 @@ h2 { font-size: 14px; font-weight: 600; margin: 0; }
   padding: 20px 14px 16px;
 }
 .wordmark { display: flex; align-items: center; gap: 10px; padding: 0 10px 20px; }
-.wordmark-mark .mark-accent { fill: var(--accent); }
-.wordmark-mark .mark-text { fill: var(--text); }
 .wordmark-name { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 #nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-item {
